@@ -137,36 +137,58 @@ class Rp5Provider(WeatherProvider):
         else:
             self.save_configuration(*region)
 
-    @staticmethod
-    def get_weather_info(page):
+    def get_weather_info(self, page):
         """ The function returns a list with the value the state of the weather.
         """
 
         # create a blank dictionary to enter the weather data
         weather_info = {}
         soup = BeautifulSoup(page, 'html.parser')
-        tag_container = soup.find(id="archiveString")
-        if tag_container:
-            forecast_temp = tag_container.find(id="ArchTemp")
-            if forecast_temp:
-                temp_info = forecast_temp.find(class_="t_0").get_text()
-                weather_info['temp'] = temp_info
 
-            forecast_realfeel = tag_container.find(class_="TempStr")
-            if forecast_realfeel:
-                realfeel = forecast_realfeel.find(class_="t_0").get_text()
-                weather_info['feels_like'] = realfeel
+        if not self.app.options.tomorrow:
+            tag_container = soup.find(id="archiveString")
+            if tag_container:
+                forecast_temp = tag_container.find(id="ArchTemp")
+                if forecast_temp:
+                    temp_info = forecast_temp.find(class_="t_0").get_text()
+                    weather_info['temp'] = temp_info
 
-        forecast_string = soup.find(id="forecastShort-content").get_text()
-        if forecast_string:
-            lst_forecast = forecast_string.split(',')
-            cond = lst_forecast[2].strip()
-            weather_info['cond'] = cond
-        forecast_wind = soup.find(class_="ArchiveInfo").get_text()
-        if forecast_wind:
-            lst_forecast = forecast_wind.split(',')
-            wind = lst_forecast[-2].strip()[:lst_forecast[-2].find(')') + 1] +\
-                lst_forecast[-1].strip()
-            weather_info['wind'] = wind
+                forecast_realfeel = tag_container.find(class_="TempStr")
+                if forecast_realfeel:
+                    realfeel = forecast_realfeel.find(class_="t_0").get_text()
+                    weather_info['feels_like'] = realfeel
+
+            forecast_string = soup.find(id="forecastShort-content").get_text()
+            if forecast_string:
+                lst_forecast = forecast_string.split(',')
+                cond = lst_forecast[2].strip()
+                weather_info['cond'] = cond
+            forecast_wind = soup.find(class_="ArchiveInfo").get_text()
+            if forecast_wind:
+                lst_forecast = forecast_wind.split(',')
+                wind = \
+                    lst_forecast[-2].strip()[:lst_forecast[-2].find(')') + 1]\
+                    + lst_forecast[-1].strip()
+                weather_info['wind'] = wind
+        else:
+            tag_container = soup.find(id="forecastShort-content")
+            if tag_container:
+                forecast_weather = \
+                    tag_container.find('span', class_="second-part")
+                if forecast_weather:
+                    forecast_info = forecast_weather.get_text()
+                    forecast_info = forecast_info.split(',')
+
+                    temp_info = forecast_weather.find(class_="t_0").get_text()
+                    weather_info['temp'] = \
+                        temp_info.strip()[:temp_info.find('°F')]
+
+                    weather_info['feels_like'] = ''
+
+                    cond = forecast_info[-2].strip()
+                    weather_info['cond'] = cond
+
+                    wind = forecast_info[-1].strip()
+                    weather_info['wind'] = wind
+
         return weather_info
-
