@@ -1,6 +1,8 @@
 """ Weather provider.
 """
 
+import re
+import html
 from bs4 import BeautifulSoup
 
 from weatherapp.rp5 import config
@@ -145,7 +147,65 @@ class Rp5Provider(WeatherProvider):
         weather_info = {}
         soup = BeautifulSoup(page, 'html.parser')
 
-        if not self.app.options.tomorrow:
+        if self.app.options.tomorrow == 'tomorrow':
+            tag_container = soup.find(id="forecastShort-content")
+            if tag_container:
+                forecast_weather = \
+                    tag_container.find('span', class_="second-part")
+                if forecast_weather:
+                    forecast_info = forecast_weather.get_text()
+                    forecast_info = forecast_info.split(',')
+
+                    temp_info = forecast_weather.find(class_="t_0").get_text()
+                    weather_info['temp'] = \
+                        temp_info.strip()[:temp_info.find('°F')]
+
+                    weather_info['feels_like'] = ''
+
+                    cond = forecast_info[-2].strip()
+                    weather_info['cond'] = cond
+
+                    wind = forecast_info[-1].strip()
+                    weather_info['wind'] = wind
+
+        elif self.app.options.regexp:
+
+            tag_temp = re.compile(r"(?is)<div id=\"ArchTemp\"[^>]*>(.+?)</div>")
+            tag_container = tag_temp.findall(page)
+            if tag_container:
+                forecast_temp = re.compile(r"(?is)<span class=\"t_0\"[^>]*>(.+?)</span")
+                temp_info = forecast_temp.findall(str(tag_container[0]))
+                weather_info['temp'] = html.unescape(temp_info[0])
+
+            tag_realfeel = re.compile(r"(?is)<div class=\"TempStr\"[^>]*>(.+?)</div>")
+            container_realfeel = tag_realfeel.findall(page)
+            if container_realfeel:
+                forecast_realfeel = re.compile(r"(?is)<span class=\"t_0\"[^>]*>(.+?)</span>")
+                realfeel = forecast_realfeel.findall(str(container_realfeel[0]))
+                weather_info['feels_like'] = html.unescape(realfeel[0])
+
+            tag_cond_info = re.compile(r"(?is)<div id=\"forecastShort-content\"[^>]*>(.+?)</div>")
+            container_cond = tag_cond_info.findall(page)
+            if container_cond:
+                tag_cond = re.compile(r"(?is)[\,]</span[^>]*>(.+?)[?</span>]")
+                lst_cond = tag_cond.findall(str(container_cond))
+                cond_info = str(lst_cond).split(',')
+                cond = cond_info[1].lstrip("' ")
+                weather_info['cond'] = cond
+
+            tag_info_wind = re.compile(r"(?is)<div class=\"ArchiveInfo\"[^>]*>(.+?)</div")
+            container_wind  = tag_info_wind.findall(page)
+
+            tag_wind = re.compile(r"(?is)</span[^>]*>,(.+?)[?<.]")
+            lst_wind = tag_wind.findall(str(container_wind))
+            info_wind = str(lst_wind).split(',')
+            tag_sped = re.compile(r"(?is)style=\"\"> *(.+?)[?<.]")
+            sped_wind = tag_sped.findall(str(container_wind))
+            wind = info_wind[-2].strip(" '") + sped_wind[1] + ', ' +\
+                info_wind[-1].strip(" ']")
+            weather_info['wind'] = wind
+
+        else:
             tag_container = soup.find(id="archiveString")
             if tag_container:
                 forecast_temp = tag_container.find(id="ArchTemp")
@@ -170,25 +230,5 @@ class Rp5Provider(WeatherProvider):
                     lst_forecast[-2].strip()[:lst_forecast[-2].find(')') + 1]\
                     + lst_forecast[-1].strip()
                 weather_info['wind'] = wind
-        else:
-            tag_container = soup.find(id="forecastShort-content")
-            if tag_container:
-                forecast_weather = \
-                    tag_container.find('span', class_="second-part")
-                if forecast_weather:
-                    forecast_info = forecast_weather.get_text()
-                    forecast_info = forecast_info.split(',')
-
-                    temp_info = forecast_weather.find(class_="t_0").get_text()
-                    weather_info['temp'] = \
-                        temp_info.strip()[:temp_info.find('°F')]
-
-                    weather_info['feels_like'] = ''
-
-                    cond = forecast_info[-2].strip()
-                    weather_info['cond'] = cond
-
-                    wind = forecast_info[-1].strip()
-                    weather_info['wind'] = wind
 
         return weather_info
